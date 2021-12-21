@@ -1,5 +1,9 @@
 import numpy as np
 from skimage.measure import regionprops
+import os
+import cv2
+
+from ..Constants import IMG_FOLDER
 
 class UtilityFunctions:
 
@@ -69,4 +73,30 @@ class UtilityFunctions:
             bboxes.append (label_properties[0]['bbox']) ##(min_row, min_col) , (max_row, max_col)
         bboxes = np.array (bboxes)
         return bboxes
+
+
+
+    @staticmethod
+    def load_samples (start = 0, end = 200, size=(200,200)):
+
+        data = []
+        labels = None
+
+        train_label_folder = IMG_FOLDER
+        filenames = os.listdir (train_label_folder)
+
+        filenames.sort ()
+
+        for i in range (start, end):
+            filename = filenames[i]
+            complete_path = os.path.join(train_label_folder, filename)        
+            img = cv2.imread (complete_path, 0)
+            img = cv2.resize (img, size)
+            if img.max() != 0:
+                data.append (img)
+            
+        labels = np.zeros((len(data), 1))
+        data = np.array(data)
+        
+        return data, labels
 
