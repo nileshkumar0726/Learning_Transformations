@@ -1,9 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from Utils.util import UtilityFunctions
 from libcpab import Cpab, CpabAligner
-from ..Constants import tess_size
-
+from Constants import tess_size
+from Constants import device_T
 
 
 """
@@ -19,7 +20,7 @@ class Region_Specific_VAE(nn.Module):
  
         
         
-        T = Cpab(tess_size=tess_size, backend='pytorch', device=device_T, zero_boundary=True)
+        self.T = Cpab(tess_size=tess_size, backend='pytorch', device=device_T, zero_boundary=True)
         
         
         # encoder conv layers
@@ -178,7 +179,7 @@ class Region_Specific_VAE(nn.Module):
         just pass a rectangle around region of interest
         """
         src_clones = x[:,0,:,:].unsqueeze(1).clone()
-        src_mask_bboxes = extract_bbox (src_clones.detach().cpu().numpy())
+        src_mask_bboxes = UtilityFunctions.extract_bbox (src_clones.detach().cpu().numpy())
         
         for idx,bbox in enumerate (src_mask_bboxes):
             src_clones[idx,0,bbox[0]:bbox[2], bbox[1]:bbox[3]] = 1
@@ -189,5 +190,5 @@ class Region_Specific_VAE(nn.Module):
         else:
             theta = self.decode (z, src_mask.unsqueeze(1))
             
-        reconstruction, velocities = T.transform_data(x[:,0,:,:].unsqueeze(1), theta, outsize=x[:,0,:,:].unsqueeze(1).size()[2:], return_velocities=True)
+        reconstruction, velocities = self.T.transform_data(x[:,0,:,:].unsqueeze(1), theta, outsize=x[:,0,:,:].unsqueeze(1).size()[2:], return_velocities=True)
         return reconstruction, mu, log_var, z, velocities

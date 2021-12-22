@@ -2,8 +2,9 @@ import numpy as np
 from skimage.measure import regionprops
 import os
 import cv2
+import torch
 
-from ..Constants import IMG_FOLDER
+from Constants import IMG_FOLDER
 
 class UtilityFunctions:
 
@@ -31,7 +32,7 @@ class UtilityFunctions:
             neighbours_to_keep: Pair each image to neighbours_to_keep closest neighbours
         '''
 
-        class_lookup = make_label_lookup(y_train)
+        class_lookup = UtilityFunctions.make_label_lookup(y_train)
         classes = np.unique(y_train)
         transformation_pairs = {}
         transformation_pairs_class = [] 
@@ -98,5 +99,20 @@ class UtilityFunctions:
         labels = np.zeros((len(data), 1))
         data = np.array(data)
         
-        return data, labels
+        return data/255.0, labels
+
+
+    @staticmethod
+    def final_loss(bce_loss, mu, logvar, beta=0.01):
+        """
+        This function will add the reconstruction loss (BCELoss) and the 
+        KL-Divergence.
+        KL-Divergence = 0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)
+        :param bce_loss: recontruction loss
+        :param mu: the mean from the latent vector
+        :param logvar: log variance from the latent vector
+        """
+        BCE = bce_loss 
+        KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+        return BCE , beta*KLD #scale KLD loss
 
