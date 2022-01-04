@@ -8,12 +8,12 @@ logs_folder = "logs"
 
 epochs = 400
 batch_size = 16
-lr = 0.001 
+lr = 0.0001 
 weight_decay = 1e-5
 img_dimensions = (200,200)
 regularization_constant = 1
 
-total_train_samples = 500
+total_train_samples = 100
 total_val_samples = 100
 
 configuration = 'Exp type {exp_type}, batch_size {batch_size}, learning_rate {lr}, velocity_reg_weight {rg_const} '\

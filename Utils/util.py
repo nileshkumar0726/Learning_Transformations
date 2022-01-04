@@ -3,6 +3,7 @@ from skimage.measure import regionprops
 import os
 import cv2
 import torch
+import re
 
 from Constants import IMG_FOLDER
 
@@ -50,6 +51,8 @@ class UtilityFunctions:
                 else:
                     dists = np.linalg.norm((current_img - X_train[datapoints_class]), axis = (1,2))
                 idx = np.argsort(dists, axis = 0)[1:neighbours_to_keep+1] 
+                #middle = len(dists)//2
+                #idx = np.argsort(dists, axis = 0)[middle:middle+neighbours_to_keep] 
 
                 for ts2 in datapoints_class[idx]:
                     transformation_pairs_class.append ((ts1, ts2))
@@ -85,8 +88,9 @@ class UtilityFunctions:
 
         train_label_folder = IMG_FOLDER
         filenames = os.listdir (train_label_folder)
+        complete_paths = []
 
-        filenames.sort ()
+        #filenames.sort ()
 
         for i in range (start, end):
             filename = filenames[i]
@@ -95,15 +99,50 @@ class UtilityFunctions:
             img = cv2.resize (img, size)
             if img.max() != 0:
                 data.append (img)
+                complete_paths.append (complete_path)
             
         labels = np.zeros((len(data), 1))
         data = np.array(data)
         
-        return data/255.0, labels
+        return data/255.0, labels, complete_paths
 
 
     @staticmethod
-    def final_loss(bce_loss, mu, logvar, beta=0.01):
+    def load_sample_volume_labels (start = 0, end = 200, size=(200,200)):
+
+        """
+        Assign labels based on location in the volume 
+        """
+
+        data = []
+        labels = []
+
+        train_label_folder = IMG_FOLDER
+        filenames = os.listdir (train_label_folder)
+
+        #filenames.sort ()
+
+        for i in range (start, end):
+            filename = filenames[i]
+            complete_path = os.path.join(train_label_folder, filename)        
+            img = cv2.imread (complete_path, 0)
+            img = cv2.resize (img, size)
+            if img.max() != 0:
+                data.append (img)
+                label = filename.split('.')[0][-3:]
+                label = int (re.sub("[^0-9]", "", label))
+                labels.append (label)
+            
+        
+        data = np.array(data)
+        labels = np.array(labels)
+        
+        return data/255.0, labels
+
+
+
+    @staticmethod
+    def final_loss(bce_loss, mu, logvar, beta=0.1):
         """
         This function will add the reconstruction loss (BCELoss) and the 
         KL-Divergence.

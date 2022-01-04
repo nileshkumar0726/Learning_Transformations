@@ -169,7 +169,7 @@ class Region_Specific_VAE(nn.Module):
 
         return theta
  
-    def forward(self, x, src_mask=None, use_src_mask=False):
+    def forward(self, x, src_img = None, src_mask=None, use_src_mask=False):
 
         # encoding
         z, mu, log_var = self.encode (x)
@@ -191,4 +191,5 @@ class Region_Specific_VAE(nn.Module):
             theta = self.decode (z, src_mask.unsqueeze(1))
             
         reconstruction, velocities = self.T.transform_data(x[:,0,:,:].unsqueeze(1), theta, outsize=x[:,0,:,:].unsqueeze(1).size()[2:], return_velocities=True)
-        return reconstruction, mu, log_var, z, velocities
+        reconstruction_img = self.T.transform_data(src_img, theta, outsize=x[:,0,:,:].unsqueeze(1).size()[2:], return_velocities=False)
+        return reconstruction, mu, log_var, z, velocities, reconstruction_img
