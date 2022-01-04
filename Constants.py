@@ -3,6 +3,7 @@ tess_size = [20,20]
 
 exp_type = 'image_input'
 IMG_FOLDER = "/home/nk4856/data/Datasets/Cardiac_Dataset/LV_Dataset/LV_Labels"
+max_slice_no = 362
 logs_folder = "logs"
 
 

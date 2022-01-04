@@ -5,7 +5,7 @@ import cv2
 import torch
 import re
 
-from Constants import IMG_FOLDER
+from Constants import IMG_FOLDER, max_slice_no
 
 class UtilityFunctions:
 
@@ -129,8 +129,11 @@ class UtilityFunctions:
             img = cv2.resize (img, size)
             if img.max() != 0:
                 data.append (img)
-                label = filename.split('.')[0][-3:]
-                label = int (re.sub("[^0-9]", "", label))
+                _, slice_no = UtilityFunctions.extract_patient_slice (filename)
+                slice_no = int (slice_no)
+                if slice_no > 360:
+                    slice_no = 360
+                label = int(slice_no) // 36
                 labels.append (label)
             
         
@@ -154,4 +157,21 @@ class UtilityFunctions:
         BCE = bce_loss 
         KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
         return BCE , beta*KLD #scale KLD loss
+
+
+    @staticmethod
+    def extract_patient_slice (filename):
+        
+        """
+        Given filename for an image
+        this functionr returns the
+        patient no. and slice no.
+        """
+
+        identifiers = re.sub("[^0-9]", "", filename)
+
+        patient_no, slice_no = identifiers[:4], identifiers[4:] #we know patient no is always 4 in length
+
+        return patient_no, slice_no
+
 
