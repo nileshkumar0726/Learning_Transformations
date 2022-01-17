@@ -6,7 +6,8 @@ import torch.nn as nn
 from Models.Region_Model import Region_Specific_VAE
 from Utils.util import UtilityFunctions
 from Constants import total_train_samples, total_val_samples, \
-    batch_size, epochs, lr, weight_decay, regularization_constant, logs_folder, configuration
+    batch_size, epochs, lr, weight_decay, regularization_constant, logs_folder, configuration, isTumor, \
+        normalize
 from Datasets.pairs_dataset import PairsDataset
 from torch.utils.data import DataLoader
 import datetime
@@ -19,16 +20,16 @@ def train_vae ():
 
     model = Region_Specific_VAE ()
     
-    train_imgs, train_labels, train_paths = UtilityFunctions.load_samples (start=0, end=total_train_samples)
-    train_pairs = UtilityFunctions.make_pairs_list_KNN (train_imgs, train_labels)
-    train_dataset = PairsDataset (train_pairs, train_imgs, train_paths)
+    train_imgs, train_labels, train_paths = UtilityFunctions.load_tumor_samples (start=0, end=total_train_samples, normalize=normalize)
+    train_pairs = UtilityFunctions.make_pairs_list_modified_KNN (train_imgs, train_labels)
+    train_dataset = PairsDataset (train_pairs, train_imgs, train_paths, isTumor=isTumor)
     train_loader = DataLoader (train_dataset, shuffle = True, batch_size = batch_size, drop_last=True)
 
-    val_imgs, val_labels, val_paths = UtilityFunctions.load_samples (start=total_train_samples, \
-        end=total_train_samples + total_val_samples)
+    val_imgs, val_labels, val_paths = UtilityFunctions.load_tumor_samples (start=total_train_samples, \
+        end=total_train_samples + total_val_samples, normalize=normalize)
 
-    val_pairs = UtilityFunctions.make_pairs_list_KNN (val_imgs, val_labels)
-    val_dataset = PairsDataset (val_pairs, val_imgs, val_paths)
+    val_pairs = UtilityFunctions.make_pairs_list_modified_KNN (val_imgs, val_labels)
+    val_dataset = PairsDataset (val_pairs, val_imgs, val_paths, isTumor=isTumor)
     val_loader = DataLoader (val_dataset, shuffle = True, batch_size = 4, drop_last=True)
 
     fit (model, train_loader, val_loader)
@@ -78,18 +79,19 @@ def fit (model, train_loader, val_loader):
                 x_n_bbox = src_bboxes[it]
                 x_m_bbox = tgt_bboxes[it]
 
-                bbox = np.zeros_like (x_m_bbox)
+                if isTumor:
+
+                    x_n_bbox, x_m_bbox = UtilityFunctions.match_bboxes (x_n_bbox, x_m_bbox)
+                    loss_matrix = UtilityFunctions.augmented_distance(reconstruction[it] , tgt[it] ,x_n_bbox, x_m_bbox)
+
+
+                else:
+
+                    bbox = UtilityFunctions.union_bboxes (x_n_bbox, x_m_bbox)
+                    diff_matrix = tgt[it] - reconstruction[it]
+                    loss_matrix = diff_matrix[:,bbox[0]:bbox[2], bbox[1]:bbox[3]]
                 
-                bbox[0] = min (x_n_bbox[0], x_m_bbox[0])
-                bbox[1] = min (x_n_bbox[1], x_m_bbox[1])
-                bbox[2] = max (x_n_bbox[2], x_m_bbox[2])
-                bbox[3] = max (x_n_bbox[3], x_m_bbox[3])
-
-                if it == 0:
-                    plot_box = bbox
-
-                diff_matrix = tgt[it] - reconstruction[it]
-                loss_matrix = diff_matrix[:,bbox[0]:bbox[2], bbox[1]:bbox[3]]
+                
                 if it == 0:
                     bce_loss = torch.norm(loss_matrix)
                 else:
@@ -180,13 +182,13 @@ def fit (model, train_loader, val_loader):
             loss = loss + velocity_regularization
 
 
-            running_recon_loss += BCE_loss.item()
-            running_kld_loss += KLD.item()
-            running_reg_loss += velocity_regularization.item()
+            running_val_recon_loss += BCE_loss.item()
+            running_val_kld_loss += KLD.item()
+            running_val_reg_loss += velocity_regularization.item()
 
-        running_val_recon_loss /= len(train_loader.dataset)
-        running_val_kld_loss /= len(train_loader.dataset)
-        running_val_reg_loss /= len(train_loader.dataset)
+        running_val_recon_loss /= len(val_loader.dataset)
+        running_val_kld_loss /= len(val_loader.dataset)
+        running_val_reg_loss /= len(val_loader.dataset)
         
         writer.add_scalar ('Loss/val_recon',running_val_recon_loss, i )
         writer.add_scalar ('Loss/val_kld',running_val_kld_loss, i )

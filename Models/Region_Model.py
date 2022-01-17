@@ -22,7 +22,6 @@ class Region_Specific_VAE(nn.Module):
         
         self.T = Cpab(tess_size=tess_size, backend='pytorch', device=device_T, zero_boundary=True)
         
-        
         # encoder conv layers
         self.convE1 = nn.Conv2d(img_channels, out_channels = 64, kernel_size = 5, dilation=5) #output size (180)
         self.convE2 = nn.Conv2d(64, out_channels = 32, kernel_size = 5, dilation=5) #output size (160)

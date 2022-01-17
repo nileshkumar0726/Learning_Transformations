@@ -5,7 +5,7 @@ import cv2
 import torch
 import re
 
-from Constants import IMG_FOLDER, max_slice_no
+from Constants import IMG_FOLDER, max_slice_no, TUMOR_SEPERATED_FOLDER, img_dimensions
 
 class UtilityFunctions:
 
@@ -62,6 +62,56 @@ class UtilityFunctions:
 
 
     @staticmethod
+    def make_pairs_list_modified_KNN (X_train, y_train, neighbours_to_keep = 5):
+
+        '''
+            Same as make_pairs_list_modified_KNN but with different distance function
+            distance is based on tumor to tumor patch not entire images
+
+        Args:
+            X_train: Training data of shape [Batch_Size, Heigh, Width, Channels]
+            y_train: Labels corresponding to X_train 
+            neighbours_to_keep: Pair each image to neighbours_to_keep closest neighbours
+        '''
+
+        class_lookup = UtilityFunctions.make_label_lookup(y_train)
+        classes = np.unique(y_train)
+        transformation_pairs = {}
+        transformation_pairs_class = [] 
+
+        for label in classes:
+            datapoints_class = class_lookup[label]
+            for ts1 in datapoints_class:
+
+                current_img = np.expand_dims (X_train[ts1] , axis = 0)
+                dists = []
+                for tgt_img in X_train[datapoints_class]:
+                    
+                    tgt_img = np.expand_dims (tgt_img, axis = 0)
+                    imgs = np.concatenate ((current_img, tgt_img) , axis = 0)
+                    bboxes = UtilityFunctions.extract_bbox (imgs)
+                    curr_bbox, tgt_bbox = bboxes[0], bboxes[1]
+                    curr_bbox, tgt_bbox = UtilityFunctions.match_bboxes (curr_bbox, tgt_bbox)
+
+                    diff_matrix = UtilityFunctions.augmented_distance (current_img, tgt_img, curr_bbox, tgt_bbox)
+                    dist = np.linalg.norm (diff_matrix.flatten())
+
+
+                    dists.append (dist)
+
+                dists = np.array (dists)
+                idx = np.argsort(dists, axis = 0)[1:neighbours_to_keep+1] 
+                #middle = len(dists)//2
+                #idx = np.argsort(dists, axis = 0)[middle:middle+neighbours_to_keep] 
+
+                for ts2 in datapoints_class[idx]:
+                    transformation_pairs_class.append ((ts1, ts2))
+            transformation_pairs[label] = np.array(transformation_pairs_class) 
+            transformation_pairs_class = []   
+        return transformation_pairs
+
+
+    @staticmethod
     def extract_bbox (mask_images):
         """
         Given batch of images 
@@ -81,7 +131,7 @@ class UtilityFunctions:
 
 
     @staticmethod
-    def load_samples (start = 0, end = 200, size=(200,200)):
+    def load_samples (start = 0, end = 200, size=(200,200), normalize=True):
 
         data = []
         labels = None
@@ -97,14 +147,59 @@ class UtilityFunctions:
             complete_path = os.path.join(train_label_folder, filename)        
             img = cv2.imread (complete_path, 0)
             img = cv2.resize (img, size)
-            if img.max() != 0:
+            unique_counts = np.unique(img, return_counts = True)
+            
+            if img.max() != 0 and unique_counts[1][1] >= 100: #remove extra small objects
+                
                 data.append (img)
                 complete_paths.append (complete_path)
             
         labels = np.zeros((len(data), 1))
         data = np.array(data)
         
-        return data/255.0, labels, complete_paths
+        if normalize:
+            return data/255.0, labels, complete_paths
+        else:
+            return data, labels, complete_paths
+
+
+
+    @staticmethod
+    def load_tumor_samples (start = 0, end = 200, size=(200,200), normalize=True):
+
+        """
+        For LiTs tumor dataset
+        """
+
+        data = []
+        labels = None
+
+        train_label_folder = TUMOR_SEPERATED_FOLDER
+        actual_label_folder = IMG_FOLDER
+        filenames = os.listdir (train_label_folder)
+        complete_paths = []
+
+        #filenames.sort ()
+
+        for i in range (start, end):
+            filename = filenames[i]
+            complete_read_path = os.path.join(train_label_folder, filename)    
+            img = cv2.imread (complete_read_path, 0)
+            img = cv2.resize (img, size, interpolation=cv2.INTER_NEAREST)
+            unique_counts = np.unique(img, return_counts = True)
+            
+            if img.max() != 0 and unique_counts[1][1] >= 100: #remove extra small tumors
+                
+                data.append (img)
+                complete_paths.append (complete_read_path)
+            
+        labels = np.zeros((len(data), 1))
+        data = np.array(data)
+        
+        if normalize:
+            return data/255.0, labels, complete_paths
+        else:
+            return data, labels, complete_paths
 
 
     @staticmethod
@@ -119,6 +214,7 @@ class UtilityFunctions:
 
         train_label_folder = IMG_FOLDER
         filenames = os.listdir (train_label_folder)
+        complete_paths = []
 
         #filenames.sort ()
 
@@ -128,11 +224,15 @@ class UtilityFunctions:
             img = cv2.imread (complete_path, 0)
             img = cv2.resize (img, size)
             if img.max() != 0:
+
                 data.append (img)
+                complete_paths.append (complete_path)
                 _, slice_no = UtilityFunctions.extract_patient_slice (filename)
                 slice_no = int (slice_no)
+                
                 if slice_no > 360:
                     slice_no = 360
+                
                 label = int(slice_no) // 36
                 labels.append (label)
             
@@ -140,7 +240,7 @@ class UtilityFunctions:
         data = np.array(data)
         labels = np.array(labels)
         
-        return data/255.0, labels
+        return data/255.0, labels, complete_paths
 
 
 
@@ -173,5 +273,119 @@ class UtilityFunctions:
         patient_no, slice_no = identifiers[:4], identifiers[4:] #we know patient no is always 4 in length
 
         return patient_no, slice_no
+
+
+    @staticmethod 
+    def union_bboxes (bbox_1, bbox_2):
+
+        """
+        Give two bboxes return a bbox that has union 
+        of two bboxes
+        """
+
+        bbox = np.zeros_like (bbox_1)
+
+        bbox[0] = min (bbox_1[0], bbox_2[0])
+        bbox[1] = min (bbox_1[1], bbox_2[1])
+        bbox[2] = max (bbox_1[2], bbox_2[2])
+        bbox[3] = max (bbox_1[3], bbox_2[3])
+
+        return bbox
+
+
+    @staticmethod
+    def augmented_distance (x1, x2, x1_bbox, x2_bbox):
+
+        """
+        calculated distance based on difference b/w
+        tumors instead of whole images 
+
+        Args: x1 & x2: numpy array of (H,W)
+        bboxes used skimage regrionprops
+
+        """
+
+        src_roi = x1[:,x1_bbox[0]:x1_bbox[2], x1_bbox[1]:x1_bbox[3]]
+        trgt_roi = x2[:,x2_bbox[0]:x2_bbox[2], x2_bbox[1]:x2_bbox[3]]
+        
+        diff = src_roi.squeeze() - trgt_roi.squeeze()
+
+        return diff
+
+
+    
+    @staticmethod
+    def match_bboxes (x_n_bbox, x_m_bbox):
+        
+        """
+        This function matches the two bboxes 
+        so they have equal height and width 
+        for recon loss calculation 
+        """
+
+        src_roi_height = x_n_bbox[2] - x_n_bbox[0]
+        src_roi_width = x_n_bbox[3] - x_n_bbox[1]
+
+        trgt_roi_height = x_m_bbox[2] - x_m_bbox[0]
+        trgt_roi_width = x_m_bbox[3] - x_m_bbox[1]
+
+        #Handle Height difference, don't do anything if equal
+        if src_roi_height < trgt_roi_height: #need to expand src roi
+            height_diff = trgt_roi_height - src_roi_height
+            half_height = int(height_diff/2)
+            if  (x_n_bbox[0] - half_height) >= 0 and (x_n_bbox[2] + \
+                (height_diff - half_height ) ) <= (img_dimensions[0]-1): #case where we can expand roi bottom and up equally
+                x_n_bbox [0] -= half_height 
+                x_n_bbox [2] += (height_diff - half_height)
+            elif (x_n_bbox[0] - height_diff) >= 0:
+                x_n_bbox[0] -= height_diff
+            else:
+                x_n_bbox[2] += height_diff
+        
+        elif trgt_roi_height < src_roi_height: #need to expand trgt roi
+            height_diff = src_roi_height - trgt_roi_height
+            half_height = int(height_diff/2)
+            if  (x_m_bbox[0] - half_height) >= 0 and (x_m_bbox[2] + \
+                (height_diff - half_height ) ) <= (img_dimensions[0] - 1): #case where we can expand roi bottom and up equally
+                x_m_bbox [0] -= half_height 
+                x_m_bbox [2] += (height_diff - half_height)
+            elif (x_m_bbox[0] - height_diff) >= 0:
+                x_m_bbox[0] -= height_diff
+            else:
+                x_m_bbox[2] += height_diff
+
+        #Handle Width difference, don't do anything if same
+        if src_roi_width < trgt_roi_width: #need to expand src roi
+            width_diff = trgt_roi_width - src_roi_width
+            half_width = int(width_diff/2)
+            if  (x_n_bbox[1] - half_width) >= 0 and (x_n_bbox[3] + \
+                (width_diff - half_width ) ) <= (img_dimensions[1] - 1): #case where we can expand roi bottom and up equally
+                x_n_bbox [1] -= half_width 
+                x_n_bbox [3] += (width_diff - half_width)
+            elif (x_n_bbox[1] - width_diff) >= 0:
+                x_n_bbox[1] -= width_diff
+            else:
+                x_n_bbox[3] += width_diff
+        
+        elif trgt_roi_width < src_roi_width: #need to expand trgt roi
+            width_diff = src_roi_width - trgt_roi_width
+            half_width = int(width_diff/2)
+            if  (x_m_bbox[1] - half_width) >= 0 and\
+                 (x_m_bbox[3] + (width_diff - width_diff ) ) <= (img_dimensions[1] - 1): #case where we can expand roi bottom and up equally
+                x_m_bbox [1] -= half_width 
+                x_m_bbox [3] += (width_diff - half_width)
+            elif (x_m_bbox[1] - width_diff) >= 0:
+                x_m_bbox[1] -= width_diff
+            else:
+                x_m_bbox[3] += width_diff
+
+
+        return x_n_bbox, x_m_bbox
+
+
+
+
+
+
 
 

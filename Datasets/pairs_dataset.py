@@ -1,12 +1,22 @@
 import torch
 from torch.utils.data import Dataset
 import cv2
+import numpy as np
+from Constants import img_dimensions, TUMOR_SEPERATED_FOLDER, IMG_FOLDER
 
 class PairsDataset (Dataset):
 
-    def __init__ (self, pairs, imgs, filenames):
+    def __init__ (self, pairs, imgs, filenames, isTumor = False):
 
-        self.pairs = pairs[0]
+        self.isTumor = isTumor
+        
+        for idx, key in enumerate(pairs.keys()):
+            if idx == 0:
+                self.pairs = pairs[key]
+            else:
+                if len(pairs[key]) > 0:
+                    self.pairs = np.concatenate((self.pairs, pairs[key]), axis = 0)
+
         self.imgs = imgs
         self.filenames = filenames
 
@@ -16,8 +26,16 @@ class PairsDataset (Dataset):
         x_src = self.imgs[x_src_idx]
         x_tgt = self.imgs[x_tgt_idx]
 
-        x_src_img_path = self.filenames[x_src_idx].replace("Labels","Images").replace("label","image")
+        if self.isTumor:
+            x_src_img_path = self.filenames[x_src_idx][:-6] + self.filenames[x_src_idx][-4:]
+            x_src_img_path = x_src_img_path.replace (TUMOR_SEPERATED_FOLDER, IMG_FOLDER)
+            x_src_img_path = x_src_img_path.replace("segmentation","volume").replace("seg","ct")\
+                .replace("png","jpg")
+        else:
+            x_src_img_path = self.filenames[x_src_idx].replace("Labels","Images").replace("label","image")
+        
         x_src_img = cv2.imread (x_src_img_path, 0)/255.0
+        x_src_img = cv2.resize (x_src_img, img_dimensions)
 
         x_src = torch.from_numpy (x_src).unsqueeze(0)
         x_tgt = torch.from_numpy (x_tgt).unsqueeze(0)
