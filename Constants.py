@@ -15,7 +15,7 @@ logs_folder = "logs"
 
 
 epochs = 400
-batch_size = 16
+batch_size = 12
 lr = 0.0001 
 weight_decay = 1e-5
 img_dimensions = (200,200)

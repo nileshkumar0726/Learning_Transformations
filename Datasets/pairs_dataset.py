@@ -31,6 +31,11 @@ class PairsDataset (Dataset):
             x_src_img_path = x_src_img_path.replace (TUMOR_SEPERATED_FOLDER, IMG_FOLDER)
             x_src_img_path = x_src_img_path.replace("segmentation","volume").replace("seg","ct")\
                 .replace("png","jpg")
+
+            #incase a single slice has double digit tumors
+            if x_src_img_path[-5] == '_':
+                x_src_img_path = x_src_img_path[:-5] + x_src_img_path[-4:]
+
         else:
             x_src_img_path = self.filenames[x_src_idx].replace("Labels","Images").replace("label","image")
         

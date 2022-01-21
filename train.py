@@ -3,7 +3,8 @@ from tqdm import tqdm
 import torch
 import torch.optim as optim
 import torch.nn as nn
-from Models.Region_Model import Region_Specific_VAE
+#from Models.Region_Model import Region_Specific_VAE
+from Models.Two_Transformation_Model import Region_Specific_VAE
 from Utils.util import UtilityFunctions
 from Constants import total_train_samples, total_val_samples, \
     batch_size, epochs, lr, weight_decay, regularization_constant, logs_folder, configuration, isTumor, \
@@ -30,7 +31,7 @@ def train_vae ():
 
     val_pairs = UtilityFunctions.make_pairs_list_modified_KNN (val_imgs, val_labels)
     val_dataset = PairsDataset (val_pairs, val_imgs, val_paths, isTumor=isTumor)
-    val_loader = DataLoader (val_dataset, shuffle = True, batch_size = 4, drop_last=True)
+    val_loader = DataLoader (val_dataset, shuffle = False, batch_size = 4, drop_last=True)
 
     fit (model, train_loader, val_loader)
 
