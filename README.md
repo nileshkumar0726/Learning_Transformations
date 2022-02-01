@@ -7,3 +7,14 @@ This repo contains code for learning transformations as a generative model by us
 - There are also different loading functions for different datasets 
 
 - Change folder paths accordingly in constants
+
+
+# Installation Instructions
+
+- Use environment.yml to export conda environment (1st Step)
+
+- libcpab code taken from https://github.com/SkafteNicki/libcpab (2nd Step - follow two steps list below)
+
+    - export PYTHONPATH=$PYTHONPATH:$YOUR_FOLDER_PATH/libcpab 
+    - python setup.py install
+

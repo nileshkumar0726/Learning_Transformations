@@ -40,6 +40,8 @@ def train_vae ():
 
 def fit (model, train_loader, val_loader):
 
+    min_val_loss = 10000
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     optimizer = optim.Adam (model.parameters(), lr = lr, weight_decay = weight_decay)
     model = model.to(device)
@@ -207,6 +209,11 @@ def fit (model, train_loader, val_loader):
         writer.add_image ('Val_Images/Recon',recon_grid, i)
         writer.add_image ('Val_Images/Recon_Src_Img',recon_src_image_grid, i)
         writer.add_image ('Val_Images/Src_Img',src_img_grid, i)
+
+        if running_val_recon_loss < min_val_loss:
+
+            UtilityFunctions.save_checkpoint (i, model, optimizer, running_recon_loss)
+            min_val_loss = running_val_recon_loss
 
 
 

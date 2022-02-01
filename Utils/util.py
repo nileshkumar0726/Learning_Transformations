@@ -5,7 +5,7 @@ import cv2
 import torch
 import re
 
-from Constants import IMG_FOLDER, max_slice_no, TUMOR_SEPERATED_FOLDER, img_dimensions
+from Constants import IMG_FOLDER, max_slice_no, TUMOR_SEPERATED_FOLDER, img_dimensions, Checkpoint_folder, configuration
 
 class UtilityFunctions:
 
@@ -381,6 +381,23 @@ class UtilityFunctions:
 
 
         return x_n_bbox, x_m_bbox
+
+
+
+    @staticmethod
+    def save_checkpoint (epoch, model, optimizer, loss):
+
+        #PATH =  os.path.join (Checkpoint_folder, configuration, str(epoch))
+        #if not os.path.isdir(PATH):
+        #    os.mkdir (PATH)
+        PATH = 'model.pt'#os.path.join (Checkpoint_folder, 'model.pt')
+
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'loss': loss,
+            }, PATH)
 
 
 

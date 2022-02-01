@@ -2,3 +2,4 @@ logs/
 Model_Weights/
 nohup.out
 *.pkl
+*.pt
