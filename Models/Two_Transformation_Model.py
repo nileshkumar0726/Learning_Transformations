@@ -15,7 +15,7 @@ both images
 Image Size (200x200)
 """
 class Region_Specific_VAE(nn.Module):
-    def __init__(self, img_channels = 2, z_dim = 35):
+    def __init__(self, img_channels = 2, z_dim = 20):
         super(Region_Specific_VAE, self).__init__()
  
         
@@ -63,7 +63,10 @@ class Region_Specific_VAE(nn.Module):
         self.FCD6 = nn.Linear(in_features=z_dim, out_features=256)
         self.FCD7 = nn.Linear(in_features=256, out_features=512)
         self.FCD8 = nn.Linear(in_features=512, out_features=1024)
-        self.FCD9 = nn.Linear (in_features=1024, out_features=self.T.params.d)
+        self.FCD9 = nn.Linear(in_features=1024, out_features=512)
+        self.FCD10 = nn.Linear(in_features=512, out_features=256)
+
+        self.FCD11 = nn.Linear (in_features=256, out_features=self.T.params.d)
 
         
 
@@ -182,7 +185,14 @@ class Region_Specific_VAE(nn.Module):
         x = self.FCD8 (x)
         x = F.leaky_relu (x)
 
-        theta_2 = self.FCD9 (x)
+        x = self.FCD9 (x)
+        x = F.leaky_relu (x)
+
+        x = self.FCD10 (x)
+        x = F.leaky_relu (x)
+
+
+        theta_2 = self.FCD11 (x)
 
         return theta_1, theta_2
  

@@ -24,7 +24,7 @@ class UtilityFunctions:
         return class_indices
 
     @staticmethod
-    def make_pairs_list_KNN (X_train, y_train, neighbours_to_keep = 5):
+    def make_pairs_list_KNN (X_train, y_train, neighbours_to_keep = 8):
 
         '''
         Args:
@@ -50,7 +50,7 @@ class UtilityFunctions:
                     - X_train[datapoints_class].reshape(X_train[datapoints_class].shape[0], -1)), axis = (1)) #check this for 3 channel images
                 else:
                     dists = np.linalg.norm((current_img - X_train[datapoints_class]), axis = (1,2))
-                idx = np.argsort(dists, axis = 0)[1:neighbours_to_keep+1] 
+                idx = np.argsort(dists, axis = 0)[4:neighbours_to_keep+1] 
                 #middle = len(dists)//2
                 #idx = np.argsort(dists, axis = 0)[middle:middle+neighbours_to_keep] 
 

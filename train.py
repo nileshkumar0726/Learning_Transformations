@@ -20,6 +20,13 @@ from torch.utils.tensorboard import SummaryWriter
 def train_vae ():
 
     model = Region_Specific_VAE ()
+
+
+    if torch.cuda.device_count() > 1:
+        print("Let's use", torch.cuda.device_count(), "GPUs!")
+        # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
+        model = nn.DataParallel(model)
+
     
     train_imgs, train_labels, train_paths = UtilityFunctions.load_tumor_samples (start=0, end=total_train_samples, normalize=normalize)
     train_pairs = UtilityFunctions.make_pairs_list_modified_KNN (train_imgs, train_labels)
@@ -51,6 +58,8 @@ def fit (model, train_loader, val_loader):
 
 
     for i in range (epochs):
+
+        print ("Epoch = ", i)
 
         running_recon_loss = 0.0
         running_kld_loss = 0.0

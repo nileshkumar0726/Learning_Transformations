@@ -1,4 +1,4 @@
-from cv2 import normalize
+
 
 
 device_T = 'gpu'
@@ -19,7 +19,7 @@ batch_size = 10
 lr = 0.0001 
 weight_decay = 1e-5
 img_dimensions = (200,200)
-regularization_constant = 1
+regularization_constant = 0.5
 Checkpoint_folder = "Model_Weights"
 
 
