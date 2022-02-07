@@ -371,7 +371,7 @@ class UtilityFunctions:
             width_diff = src_roi_width - trgt_roi_width
             half_width = int(width_diff/2)
             if  (x_m_bbox[1] - half_width) >= 0 and\
-                 (x_m_bbox[3] + (width_diff - width_diff ) ) <= (img_dimensions[1] - 1): #case where we can expand roi bottom and up equally
+                 (x_m_bbox[3] + (width_diff - half_width ) ) <= (img_dimensions[1] - 1): #case where we can expand roi bottom and up equally
                 x_m_bbox [1] -= half_width 
                 x_m_bbox [3] += (width_diff - half_width)
             elif (x_m_bbox[1] - width_diff) >= 0:
