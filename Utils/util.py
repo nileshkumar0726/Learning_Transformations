@@ -5,7 +5,8 @@ import cv2
 import torch
 import re
 
-from Constants import IMG_FOLDER, max_slice_no, TUMOR_SEPERATED_FOLDER, img_dimensions, Checkpoint_folder, configuration
+from Constants import IMG_FOLDER, max_slice_no, \
+    TUMOR_SEPERATED_FOLDER, img_dimensions, Checkpoint_folder, configuration, MAX_WIDTH, MAX_HEIGHT, batch_size
 
 class UtilityFunctions:
 
@@ -384,13 +385,120 @@ class UtilityFunctions:
 
 
 
+
+    @staticmethod
+    def imgs_to_patches (x_n, x_m):
+
+        x_n = x_n.squeeze()
+        x_m = x_m.squeeze ()
+
+        x_n_bboxes = UtilityFunctions.extract_bbox (x_n)
+        x_m_bboxes = UtilityFunctions.extract_bbox (x_m)
+
+        
+
+        xn_patches = []
+        xm_patches = []
+
+        it = 0
+
+        while it < batch_size:
+
+            x_n_bbox = x_n_bboxes[it]
+            x_m_bbox = x_m_bboxes[it]
+
+            src_roi_height = x_n_bbox[2] - x_n_bbox[0]
+            src_roi_width = x_n_bbox[3] - x_n_bbox[1]
+
+            trgt_roi_height = x_m_bbox[2] - x_m_bbox[0]
+            trgt_roi_width = x_m_bbox[3] - x_m_bbox[1]
+
+            if src_roi_height < MAX_HEIGHT: #need to expand src roi
+                
+                height_diff = MAX_HEIGHT - src_roi_height
+                half_height = int(height_diff/2)
+                if  (x_n_bbox[0] - half_height) >= 0 and (x_n_bbox[2] + (height_diff - half_height ) )\
+                     <= (img_dimensions[0]-1): #case where we can expand roi bottom and up equally
+                    x_n_bbox [0] -= half_height 
+                    x_n_bbox [2] += (height_diff - half_height)
+                elif (x_n_bbox[0] - height_diff) >= 0:
+                    max_added_to_bottom = (img_dimensions[0] - 1) - x_n_bbox[2]
+                    x_n_bbox[2] += max_added_to_bottom
+                    x_n_bbox[0] -= (height_diff - max_added_to_bottom)
+                else:
+                    max_subtracted_from_top = x_n_bbox[0]
+                    x_n_bbox[0] = 0
+                    x_n_bbox[2] += (height_diff - max_subtracted_from_top)
+
+            if src_roi_width < MAX_WIDTH: #need to expand src roi
+                
+                width_diff = MAX_WIDTH - src_roi_width
+                half_width = int(width_diff/2)
+                if  (x_n_bbox[1] - half_width) >= 0 and (x_n_bbox[3] + (width_diff - half_width ) )\
+                     <= (img_dimensions[1] - 1): #case where we can expand roi bottom and up equally
+                    x_n_bbox [1] -= half_width 
+                    x_n_bbox [3] += (width_diff - half_width)
+                elif (x_n_bbox[1] - width_diff) >= 0:
+                    max_added_to_right = (img_dimensions[1] - 1) - x_n_bbox[3]
+                    x_n_bbox[3] += max_added_to_right
+                    x_n_bbox[1] -= (width_diff - max_added_to_right)
+                else:
+                    max_subtracted_from_left = x_n_bbox[1]
+                    x_n_bbox[1] = 0
+                    x_n_bbox[3] += (width_diff - max_subtracted_from_left)
+
+
+            if trgt_roi_height < MAX_HEIGHT: #need to expand trgt roi
+                
+                height_diff = MAX_HEIGHT - trgt_roi_height
+                half_height = int(height_diff/2)
+                if  (x_m_bbox[0] - half_height) >= 0 and (x_m_bbox[2] + (height_diff - half_height ) )\
+                     <= (img_dimensions[0] - 1): #case where we can expand roi bottom and up equally
+                    x_m_bbox [0] -= half_height 
+                    x_m_bbox [2] += (height_diff - half_height)
+                elif (x_m_bbox[0] - height_diff) >= 0:
+                    max_added_to_bottom = (img_dimensions[0] - 1) - x_m_bbox[2]
+                    x_m_bbox[2] += max_added_to_bottom
+                    x_m_bbox[0] -= (height_diff - max_added_to_bottom)
+                else:
+                    max_subtracted_from_top = x_m_bbox[0]
+                    x_m_bbox[0] = 0
+                    x_m_bbox[2] += (height_diff - max_subtracted_from_top)
+
+            if trgt_roi_width < MAX_WIDTH: #need to expand trgt roi
+                
+                width_diff = MAX_WIDTH - trgt_roi_width
+                half_width = int(width_diff/2)
+                if  (x_m_bbox[1] - half_width) >= 0 and (x_m_bbox[3] + (width_diff - half_width ) )\
+                     <= (img_dimensions[1] - 1): #case where we can expand roi bottom and up equally
+                    x_m_bbox [1] -= half_width 
+                    x_m_bbox [3] += (width_diff - half_width)
+                elif (x_m_bbox[1] - width_diff) >= 0:
+                    max_added_to_right = (img_dimensions[1] - 1) - x_m_bbox[3]
+                    x_m_bbox[3] += max_added_to_right
+                    x_m_bbox[1] -= (width_diff - max_added_to_right)
+                else:
+                    max_subtracted_from_left = x_m_bbox[1]
+                    x_m_bbox[1] = 0
+                    x_m_bbox[3] += (width_diff - max_subtracted_from_left)
+
+            xn_patches.append (x_n[it,x_n_bbox[0]:x_n_bbox[2], x_n_bbox[1]:x_n_bbox[3]])
+            xm_patches.append (x_m[it,x_m_bbox[0]:x_m_bbox[2], x_m_bbox[1]:x_m_bbox[3]])
+            
+            it += 1
+
+
+        return xn_patches, xm_patches
+
+
+
     @staticmethod
     def save_checkpoint (epoch, model, optimizer, loss):
 
         #PATH =  os.path.join (Checkpoint_folder, configuration, str(epoch))
         #if not os.path.isdir(PATH):
         #    os.mkdir (PATH)
-        PATH = 'model.pt'#os.path.join (Checkpoint_folder, 'model.pt')
+        PATH = 'model_tumor_patches.pt'#os.path.join (Checkpoint_folder, 'model.pt')
 
         torch.save({
             'epoch': epoch,

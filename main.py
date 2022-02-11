@@ -1,4 +1,5 @@
-from train import train_vae
+#from train import train_vae
+from train_patches import train_vae
 
 if __name__ == "__main__":
 

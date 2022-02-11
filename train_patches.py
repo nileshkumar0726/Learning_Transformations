@@ -1,10 +1,21 @@
+"""
+Same as train on but this training 
+is based on patches containing tumor 
+Assumption is, it is very difficult to detect small
+tumor with Conv networks downsampling
+
+"""
+
+
+
 import numpy as np
 from tqdm import tqdm
 import torch
 import torch.optim as optim
 import torch.nn as nn
 #from Models.Region_Model import Region_Specific_VAE
-from Models.Two_Transformation_Model import Region_Specific_VAE
+#from Models.Two_Transformation_Model import Region_Specific_VAE
+from Models.Region_Model_Patches import Region_Specific_Model_Liver_Patches_VAE_DI
 from Utils.util import UtilityFunctions
 from Constants import total_train_samples, total_val_samples, \
     batch_size, epochs, lr, weight_decay, regularization_constant, logs_folder, configuration, isTumor, \
@@ -19,7 +30,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 def train_vae ():
 
-    model = Region_Specific_VAE ()
+    model = Region_Specific_Model_Liver_Patches_VAE_DI ()
 
 
     if torch.cuda.device_count() > 1:
@@ -28,12 +39,12 @@ def train_vae ():
         model = nn.DataParallel(model)
 
     
-    train_imgs, train_labels, train_paths = UtilityFunctions.load_samples (start=0, end=total_train_samples, normalize=normalize)
+    train_imgs, train_labels, train_paths = UtilityFunctions.load_tumor_samples (start=0, end=total_train_samples, normalize=normalize)
     train_pairs = UtilityFunctions.make_pairs_list_modified_KNN (train_imgs, train_labels)
     train_dataset = PairsDataset (train_pairs, train_imgs, train_paths, isTumor=isTumor)
     train_loader = DataLoader (train_dataset, shuffle = True, batch_size = batch_size, drop_last=True)
 
-    val_imgs, val_labels, val_paths = UtilityFunctions.load_samples (start=total_train_samples, \
+    val_imgs, val_labels, val_paths = UtilityFunctions.load_tumor_samples (start=total_train_samples, \
         end=total_train_samples + total_val_samples, normalize=normalize)
 
     val_pairs = UtilityFunctions.make_pairs_list_modified_KNN (val_imgs, val_labels)
@@ -73,14 +84,25 @@ def fit (model, train_loader, val_loader):
 
         for src, tgt, src_img in tqdm(train_loader):
 
+            src_patches, tgt_patches = UtilityFunctions.imgs_to_patches (src.detach().numpy(), tgt.detach().numpy())
+            
+            src_patches = np.expand_dims (src_patches, axis = 1)
+            tgt_patches = np.expand_dims (tgt_patches, axis = 1)
+
+            src_patches = torch.from_numpy (src_patches)
+            tgt_patches = torch.from_numpy (tgt_patches)
+
+            src_patches = src_patches.to(device).float()
+            tgt_patches = tgt_patches.to(device).float()
+            src_img = src_img.to(device).float()
             src = src.to(device).float()
             tgt = tgt.to(device).float()
-            src_img = src_img.to(device).float()
 
-            x = torch.cat((src, tgt), dim = 1)
+            x = torch.cat((src_patches, tgt_patches), dim = 1)
             
             optimizer.zero_grad()
-            reconstruction, mu, logvar, z, velocities, reconstruction_img = model(x, src_img=src_img)
+            reconstruction, mu, logvar, z, velocities, reconstruction_img, velocities_theta_2_norm = model(x, src_img=src_img\
+                ,src_mask = src, use_src_mask = True)
 
             src_bboxes = UtilityFunctions.extract_bbox (src.detach().cpu().numpy())
             tgt_bboxes = UtilityFunctions.extract_bbox (tgt.detach().cpu().numpy())
@@ -117,6 +139,8 @@ def fit (model, train_loader, val_loader):
             velocity_regularization = regularization_constant * velocity_regularization
             loss = loss + velocity_regularization
 
+            loss = loss + velocities_theta_2_norm * regularization_constant
+
             loss.backward()
             optimizer.step()
 
@@ -147,91 +171,79 @@ def fit (model, train_loader, val_loader):
 
 
         #Val Loop
-        model.eval()
+        # model.eval()
 
-        for src, tgt, src_img in tqdm(val_loader):
+        # for src, tgt, src_img in tqdm(val_loader):
 
-            src = src.to(device).float()
-            tgt = tgt.to(device).float()
-            src_img = src_img.to(device).float()
+        #     src = src.to(device).float()
+        #     tgt = tgt.to(device).float()
+        #     src_img = src_img.to(device).float()
 
-            x = torch.cat((src, tgt), dim = 1)
+        #     x = torch.cat((src, tgt), dim = 1)
             
-            reconstruction, mu, logvar, z, velocities, reconstruction_img = model(x, src_img=src_img)
+        #     reconstruction, mu, logvar, z, velocities, reconstruction_img = model(x, src_img=src_img)
 
-            src_bboxes = UtilityFunctions.extract_bbox (src.detach().cpu().numpy())
-            tgt_bboxes = UtilityFunctions.extract_bbox (tgt.detach().cpu().numpy())
+        #     src_bboxes = UtilityFunctions.extract_bbox (src.detach().cpu().numpy())
+        #     tgt_bboxes = UtilityFunctions.extract_bbox (tgt.detach().cpu().numpy())
 
-            it = 0
-            while it < len(src_bboxes):
+        #     it = 0
+        #     while it < len(src_bboxes):
 
-                x_n_bbox = src_bboxes[it]
-                x_m_bbox = tgt_bboxes[it]
+        #         x_n_bbox = src_bboxes[it]
+        #         x_m_bbox = tgt_bboxes[it]
 
-                bbox = np.zeros_like (x_m_bbox)
+        #         bbox = np.zeros_like (x_m_bbox)
                 
-                bbox[0] = min (x_n_bbox[0], x_m_bbox[0])
-                bbox[1] = min (x_n_bbox[1], x_m_bbox[1])
-                bbox[2] = max (x_n_bbox[2], x_m_bbox[2])
-                bbox[3] = max (x_n_bbox[3], x_m_bbox[3])
+        #         bbox[0] = min (x_n_bbox[0], x_m_bbox[0])
+        #         bbox[1] = min (x_n_bbox[1], x_m_bbox[1])
+        #         bbox[2] = max (x_n_bbox[2], x_m_bbox[2])
+        #         bbox[3] = max (x_n_bbox[3], x_m_bbox[3])
 
-                if it == 0:
-                    plot_box = bbox
+        #         if it == 0:
+        #             plot_box = bbox
 
-                diff_matrix = tgt[it] - reconstruction[it]
-                loss_matrix = diff_matrix[:,bbox[0]:bbox[2], bbox[1]:bbox[3]]
-                if it == 0:
-                    bce_loss = torch.norm(loss_matrix)
-                else:
-                    bce_loss += torch.norm(loss_matrix)
-                it += 1
+        #         diff_matrix = tgt[it] - reconstruction[it]
+        #         loss_matrix = diff_matrix[:,bbox[0]:bbox[2], bbox[1]:bbox[3]]
+        #         if it == 0:
+        #             bce_loss = torch.norm(loss_matrix)
+        #         else:
+        #             bce_loss += torch.norm(loss_matrix)
+        #         it += 1
 
-            BCE_loss, KLD = UtilityFunctions.final_loss(bce_loss, mu, logvar)
-            loss = BCE_loss + KLD 
+        #     BCE_loss, KLD = UtilityFunctions.final_loss(bce_loss, mu, logvar)
+        #     loss = BCE_loss + KLD 
 
-            velocity_regularization = torch.norm (velocities)
-            velocity_regularization = regularization_constant * velocity_regularization
-            loss = loss + velocity_regularization
+        #     velocity_regularization = torch.norm (velocities)
+        #     velocity_regularization = regularization_constant * velocity_regularization
+        #     loss = loss + velocity_regularization
 
 
-            running_val_recon_loss += BCE_loss.item()
-            running_val_kld_loss += KLD.item()
-            running_val_reg_loss += velocity_regularization.item()
+        #     running_val_recon_loss += BCE_loss.item()
+        #     running_val_kld_loss += KLD.item()
+        #     running_val_reg_loss += velocity_regularization.item()
 
-        running_val_recon_loss /= len(val_loader.dataset)
-        running_val_kld_loss /= len(val_loader.dataset)
-        running_val_reg_loss /= len(val_loader.dataset)
+        # running_val_recon_loss /= len(val_loader.dataset)
+        # running_val_kld_loss /= len(val_loader.dataset)
+        # running_val_reg_loss /= len(val_loader.dataset)
         
-        writer.add_scalar ('Loss/val_recon',running_val_recon_loss, i )
-        writer.add_scalar ('Loss/val_kld',running_val_kld_loss, i )
-        writer.add_scalar ('Loss/val_reg',running_val_reg_loss, i )
+        # writer.add_scalar ('Loss/val_recon',running_val_recon_loss, i )
+        # writer.add_scalar ('Loss/val_kld',running_val_kld_loss, i )
+        # writer.add_scalar ('Loss/val_reg',running_val_reg_loss, i )
 
-        src_grid = make_grid(src)
-        tgt_grid = make_grid(tgt)
-        recon_grid = make_grid(reconstruction)
-        src_img_grid = make_grid (src_img)
-        recon_src_image_grid = make_grid (reconstruction_img)
-
-
-        writer.add_image ('Val_Images/Src',src_grid, i)
-        writer.add_image ('Val_Images/Tgt',tgt_grid, i)
-        writer.add_image ('Val_Images/Recon',recon_grid, i)
-        writer.add_image ('Val_Images/Recon_Src_Img',recon_src_image_grid, i)
-        writer.add_image ('Val_Images/Src_Img',src_img_grid, i)
-
-        if running_val_recon_loss < min_val_loss:
-
-            UtilityFunctions.save_checkpoint (i, model, optimizer, running_recon_loss)
-            min_val_loss = running_val_recon_loss
+        # src_grid = make_grid(src)
+        # tgt_grid = make_grid(tgt)
+        # recon_grid = make_grid(reconstruction)
+        # src_img_grid = make_grid (src_img)
+        # recon_src_image_grid = make_grid (reconstruction_img)
 
 
+        # writer.add_image ('Val_Images/Src',src_grid, i)
+        # writer.add_image ('Val_Images/Tgt',tgt_grid, i)
+        # writer.add_image ('Val_Images/Recon',recon_grid, i)
+        # writer.add_image ('Val_Images/Recon_Src_Img',recon_src_image_grid, i)
+        # writer.add_image ('Val_Images/Src_Img',src_img_grid, i)
 
+        # if running_val_recon_loss < min_val_loss:
 
-
-
-
-
-
-
-
-
+        UtilityFunctions.save_checkpoint (i, model, optimizer, running_recon_loss)
+            # min_val_loss = running_val_recon_loss
