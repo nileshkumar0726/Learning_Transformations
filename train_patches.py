@@ -101,7 +101,7 @@ def fit (model, train_loader, val_loader):
             x = torch.cat((src_patches, tgt_patches), dim = 1)
             
             optimizer.zero_grad()
-            reconstruction, mu, logvar, z, velocities, reconstruction_img, velocities_theta_2_norm = model(x, src_img=src_img\
+            reconstruction, mu, logvar, z, reconstruction_img = model(x, src_img=src_img\
                 ,src_mask = src, use_src_mask = True)
 
             src_bboxes = UtilityFunctions.extract_bbox (src.detach().cpu().numpy())
@@ -135,18 +135,18 @@ def fit (model, train_loader, val_loader):
             BCE_loss, KLD = UtilityFunctions.final_loss(bce_loss, mu, logvar)
             loss = BCE_loss + KLD 
 
-            velocity_regularization = torch.norm (velocities)
-            velocity_regularization = regularization_constant * velocity_regularization
-            loss = loss + velocity_regularization
+            #velocity_regularization = torch.norm (velocities)
+            #velocity_regularization = regularization_constant * velocity_regularization
+            #loss = loss + velocity_regularization
 
-            loss = loss + velocities_theta_2_norm * regularization_constant
+            #loss = loss + velocities_theta_2_norm * regularization_constant
 
             loss.backward()
             optimizer.step()
 
             running_recon_loss += BCE_loss.item()
             running_kld_loss += KLD.item()
-            running_reg_loss += velocity_regularization.item()
+            #running_reg_loss += velocity_regularization.item()
 
         running_recon_loss /= len(train_loader.dataset)
         running_kld_loss /= len(train_loader.dataset)
@@ -154,7 +154,7 @@ def fit (model, train_loader, val_loader):
         
         writer.add_scalar ('Loss/train_recon',running_recon_loss, i )
         writer.add_scalar ('Loss/train_kld',running_kld_loss, i )
-        writer.add_scalar ('Loss/train_reg',running_reg_loss, i )
+        #writer.add_scalar ('Loss/train_reg',running_reg_loss, i )
 
         src_grid = make_grid(src)
         tgt_grid = make_grid(tgt)

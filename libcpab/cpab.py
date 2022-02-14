@@ -50,6 +50,7 @@ class Cpab(object):
         @visualize_vectorfield
         @visualize_tesselation
         @visualize_deformgrid
+        @transform_data_two_theta
     """
     def __init__(self, 
                  tess_size,
@@ -352,6 +353,42 @@ class Cpab(object):
             return data_t, velocities
         else:
             return data_t
+
+    def transform_data_two_theta (self, data, theta, outsize, bbox,return_velocities = False):
+
+        self._check_type(data); self._check_device(data)
+        self._check_type(theta[0]); self._check_device(theta[0])
+        self._check_type(theta[1]); self._check_device(theta[1])
+        #print ('Outsize = ', outsize)
+        grid_1 = self.uniform_meshgrid(outsize[0])
+        grid_2 = self.uniform_meshgrid(outsize[1])
+
+
+        if return_velocities:
+            grid_t1, velocities_1 = self.transform_grid(grid_1, theta[0].unsqueeze(0), return_velocities)
+            grid_t2, velocities_2 = self.transform_grid(grid_2, theta[1].unsqueeze(0), return_velocities)
+            
+        else:
+
+            grid_t1 = self.transform_grid(grid_1, theta[0], return_velocities)
+            grid_t2 = self.transform_grid(grid_2, theta[1], return_velocities)
+
+        
+
+        grid_t1 = grid_t1.view (1, 2, outsize[0][0], outsize[0][1])
+        grid_t2 = grid_t2.view (1, 2, outsize[1][0], outsize[1][1])
+
+        grid_t1[0, :,bbox[0]:bbox[2], bbox[1]:bbox[3]] = grid_t2[0]
+
+        grid_t1 = grid_t1.view(1,2, outsize[0][0]*outsize[0][1])
+
+        data_t = self.interpolate(data, grid_t1, outsize[0])
+
+
+        if return_velocities:
+            return data_t, velocities_1, velocities_2, grid_t1
+        else:
+            return data_t, grid_t1
     
     #%%
     def calc_vectorfield(self, grid, theta):

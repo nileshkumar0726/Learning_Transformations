@@ -416,11 +416,35 @@ class Region_Specific_Model_Liver_Patches_VAE_DI(nn.Module):
         """
         src_clones = src_mask.clone()
         src_mask_bboxes = UtilityFunctions.extract_bbox (src_clones.detach().cpu().numpy())
+        batch_recon = torch.zeros_like (src_mask)
+        batch_recon_img = torch.zeros_like (src_mask)
+
+        
         
         for idx,bbox in enumerate (src_mask_bboxes):
             src_clones[idx,0,bbox[0]:bbox[2], bbox[1]:bbox[3]] = 1
 
         theta_1, theta_2 = self.decode (z, src_clones)
+
+        batch_size = theta_1.size(0)
+
+        for idx in range (batch_size):
+
+            bbox = src_mask_bboxes[idx]
+
+            src_mask_patch = src_mask[idx,0,bbox[0]:bbox[2], bbox[1]:bbox[3]].unsqueeze(0).unsqueeze(0)
+            src_img_patch = src_img[idx,0,bbox[0]:bbox[2], bbox[1]:bbox[3]].unsqueeze(0).unsqueeze(0)
+
+            theta = (theta_1[idx].unsqueeze(0), theta_2[idx].unsqueeze(0))
+            outsize = (src_mask.size()[2:], src_img_patch.size()[2:])
+            
+            reconstruction, grid_t = self.T.transform_data_two_theta (src_mask[idx].unsqueeze(0), \
+                theta, outsize,bbox)
+            reconstruction_img = self.T.interpolate (src_img[idx].unsqueeze(0), grid_t, src_mask.size()[2:])
+
+            batch_recon[idx] = reconstruction[0]
+            batch_recon_img[idx] = reconstruction_img[0]
+
 
         # if not use_src_mask:    
         #     # decoding
@@ -428,30 +452,30 @@ class Region_Specific_Model_Liver_Patches_VAE_DI(nn.Module):
         # else:
         #     theta_1, theta_2 = self.decode (z, src_mask)
             
-        reconstruction, velocities = self.T.transform_data(src_mask, theta_1, outsize=src_mask.size()[2:], return_velocities=True)
-        reconstruction_img = self.T.transform_data(src_img, theta_1, outsize=src_img.size()[2:], return_velocities=False)
+        # reconstruction, velocities = self.T.transform_data(src_mask, theta_1, outsize=src_mask.size()[2:], return_velocities=True)
+        # reconstruction_img = self.T.transform_data(src_img, theta_1, outsize=src_img.size()[2:], return_velocities=False)
         
 
-        ###Do patch wise transformation here
-        for idx,bbox in enumerate (src_mask_bboxes):
-            src_mask_patch = src_mask[idx,0,bbox[0]:bbox[2], bbox[1]:bbox[3]].unsqueeze(0).unsqueeze(0)
-            src_img_patch = src_img[idx,0,bbox[0]:bbox[2], bbox[1]:bbox[3]].unsqueeze(0).unsqueeze(0)
+        # ###Do patch wise transformation here
+        # for idx,bbox in enumerate (src_mask_bboxes):
+        #     src_mask_patch = src_mask[idx,0,bbox[0]:bbox[2], bbox[1]:bbox[3]].unsqueeze(0).unsqueeze(0)
+        #     src_img_patch = src_img[idx,0,bbox[0]:bbox[2], bbox[1]:bbox[3]].unsqueeze(0).unsqueeze(0)
 
 
-            src_mask_patch_trsfmd, velocities_theta_2 = self.T.transform_data(src_mask_patch, theta_2[idx].unsqueeze(0), \
-                outsize = src_mask_patch.size()[2:], return_velocities=True )
+        #     src_mask_patch_trsfmd, velocities_theta_2 = self.T.transform_data(src_mask_patch, theta_2[idx].unsqueeze(0), \
+        #         outsize = src_mask_patch.size()[2:], return_velocities=True )
 
-            if idx == 0:
-                velocities_theta_2_norm = torch.norm (velocities_theta_2)
-            else:
-                velocities_theta_2_norm = velocities_theta_2_norm + torch.norm (velocities_theta_2_norm)
+        #     if idx == 0:
+        #         velocities_theta_2_norm = torch.norm (velocities_theta_2)
+        #     else:
+        #         velocities_theta_2_norm = velocities_theta_2_norm + torch.norm (velocities_theta_2_norm)
 
-            src_img_patch_trsfmd = self.T.transform_data(src_img_patch, theta_2[idx].unsqueeze(0),\
-                outsize = src_img_patch.size()[2:])
+        #     src_img_patch_trsfmd = self.T.transform_data(src_img_patch, theta_2[idx].unsqueeze(0),\
+        #         outsize = src_img_patch.size()[2:])
 
-            #put them back into whole image
-            reconstruction[idx,0,bbox[0]:bbox[2], bbox[1]:bbox[3]] = src_mask_patch_trsfmd
-            reconstruction_img[idx,0,bbox[0]:bbox[2], bbox[1]:bbox[3]] = src_img_patch_trsfmd
+        #     #put them back into whole image
+        #     reconstruction[idx,0,bbox[0]:bbox[2], bbox[1]:bbox[3]] = src_mask_patch_trsfmd
+        #     reconstruction_img[idx,0,bbox[0]:bbox[2], bbox[1]:bbox[3]] = src_img_patch_trsfmd
 
         
-        return reconstruction, mu, log_var, z, velocities, reconstruction_img, velocities_theta_2_norm
+        return batch_recon, mu, log_var, z, batch_recon_img
