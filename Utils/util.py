@@ -4,6 +4,7 @@ import os
 import cv2
 import torch
 import re
+from Models.Vanilla_VAE import Vanilla_VAE
 
 from Constants import IMG_FOLDER, max_slice_no, TUMOR_SEPERATED_FOLDER, img_dimensions, Checkpoint_folder, configuration
 
@@ -117,7 +118,12 @@ class UtilityFunctions:
         Given batch of images 
         extract bboxes for masks in each imge
         """
+        
         mask_images = mask_images.squeeze()
+        
+        if len(mask_images.shape) == 2: #in case there was just one mask 
+            mask_images = np.expand_dims(mask_images, 0)
+
         mask_images = mask_images.astype(np.int32)
         bboxes = []
         for mask_image in mask_images:
@@ -148,6 +154,7 @@ class UtilityFunctions:
             img = cv2.imread (complete_path, 0)
             img = cv2.resize (img, size)
             unique_counts = np.unique(img, return_counts = True)
+
             
             if img.max() != 0 and unique_counts[1][1] >= 100: #remove extra small objects
                 
@@ -165,7 +172,7 @@ class UtilityFunctions:
 
 
     @staticmethod
-    def load_tumor_samples (start = 0, end = 200, size=(200,200), normalize=True):
+    def load_tumor_samples (start = 0, end = 200, size=(30,30), normalize=True):
 
         """
         For LiTs tumor dataset
@@ -185,17 +192,21 @@ class UtilityFunctions:
             filename = filenames[i]
             complete_read_path = os.path.join(train_label_folder, filename)    
             img = cv2.imread (complete_read_path, 0)
-            img = cv2.resize (img, size, interpolation=cv2.INTER_NEAREST)
             unique_counts = np.unique(img, return_counts = True)
             
             if img.max() != 0 and unique_counts[1][1] >= 100: #remove extra small tumors
                 
+                bbox = UtilityFunctions.extract_bbox(img)[0]
+                img = img[bbox[0]:bbox[2], bbox[1]:bbox[3]]
+                img = cv2.resize (img, size, interpolation=cv2.INTER_NEAREST)
                 data.append (img)
                 complete_paths.append (complete_read_path)
             
         labels = np.zeros((len(data), 1))
         data = np.array(data)
         
+
+        print ("DAta shape = ", data.shape)
         if normalize:
             return data/255.0, labels, complete_paths
         else:
@@ -368,10 +379,11 @@ class UtilityFunctions:
                 x_n_bbox[3] += width_diff
         
         elif trgt_roi_width < src_roi_width: #need to expand trgt roi
+
             width_diff = src_roi_width - trgt_roi_width
             half_width = int(width_diff/2)
             if  (x_m_bbox[1] - half_width) >= 0 and\
-                 (x_m_bbox[3] + (width_diff - width_diff ) ) <= (img_dimensions[1] - 1): #case where we can expand roi bottom and up equally
+                 (x_m_bbox[3] + (width_diff - half_width ) ) <= (img_dimensions[1] - 1): #case where we can expand roi bottom and up equally
                 x_m_bbox [1] -= half_width 
                 x_m_bbox [3] += (width_diff - half_width)
             elif (x_m_bbox[1] - width_diff) >= 0:
@@ -390,7 +402,7 @@ class UtilityFunctions:
         #PATH =  os.path.join (Checkpoint_folder, configuration, str(epoch))
         #if not os.path.isdir(PATH):
         #    os.mkdir (PATH)
-        PATH = 'model.pt'#os.path.join (Checkpoint_folder, 'model.pt')
+        PATH = 'model_LV.pt'#os.path.join (Checkpoint_folder, 'model.pt')
 
         torch.save({
             'epoch': epoch,
@@ -401,7 +413,26 @@ class UtilityFunctions:
 
 
 
+    @staticmethod
+    def generate_samples (src_images, model_checkpoint, out_folder):
 
+        no_of_trans_samples = 10
+        
+        model = Vanilla_VAE ()
+        checkpoint = torch.load(model_checkpoint)
+        model.load_state_dict(checkpoint['model_state_dict'])
+
+        model.eval()
+
+        rand_sample = torch.randn(no_of_trans_samples).cuda()
+        model.decode(rand_sample)
+
+
+
+
+
+
+        
 
 
 

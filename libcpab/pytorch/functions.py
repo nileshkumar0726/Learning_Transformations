@@ -22,7 +22,7 @@ def assert_version():
 #%%
 def to(x, dtype=torch.float32, device=None):
     if type(device)==str:
-        device = torch.device("cuda") if device=="gpu" else torch.device("cpu")
+        device = torch.device("cuda:0") if device=="gpu" else torch.device("cpu")
     return torch.tensor(x, dtype=dtype, device=device)
 
 #%%
