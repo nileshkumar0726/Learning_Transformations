@@ -8,6 +8,7 @@ from Models.Vanilla_VAE import Vanilla_VAE
 
 from Constants import IMG_FOLDER, max_slice_no, TUMOR_SEPERATED_FOLDER, img_dimensions, Checkpoint_folder, configuration
 
+
 class UtilityFunctions:
 
     def __init__(self) -> None:
@@ -425,7 +426,19 @@ class UtilityFunctions:
         model.eval()
 
         rand_sample = torch.randn(no_of_trans_samples).cuda()
-        model.decode(rand_sample)
+        thetas = model.decode(rand_sample)
+
+        for idx, theta in enumerate (thetas):
+
+            out_image = model.T.transform_data()
+
+
+
+
+
+
+
+
 
 
 
