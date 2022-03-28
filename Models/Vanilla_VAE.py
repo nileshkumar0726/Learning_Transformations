@@ -1,9 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from Utils.util import UtilityFunctions
 from libcpab import Cpab
-from Constants import tess_size
+from Constants import tess_size, is_determinstic
 from Constants import device_T
 
 
@@ -76,11 +75,17 @@ class Vanilla_VAE(nn.Module):
         x_out = self.FCE1 (x_out)
         x_out = F.leaky_relu (x_out)
         
-        mu = self.FCE2 (x_out)
-        log_var = self.FCE3 (x_out)
+        if not is_determinstic:
+            mu = self.FCE2 (x_out)
+            log_var = self.FCE3 (x_out)
 
-        z = self.reparameterize (mu, log_var)
-        return z, mu, log_var
+            z = self.reparameterize (mu, log_var)
+            return z, mu, log_var
+
+        else:
+            
+            mu = self.FCE2 (x_out)
+            return mu
 
     def decode (self, x):
 
@@ -103,8 +108,15 @@ class Vanilla_VAE(nn.Module):
     def forward(self, x):
 
         # encoding
-        z, mu, log_var = self.encode (x)
+        if not is_determinstic:
+            z, mu, log_var = self.encode (x)
+        else:
+            z = self.encode (x)
+        
         theta = self.decode (z)
             
         reconstruction = self.T.transform_data(x[:,0,:,:].unsqueeze(1), theta, outsize=x[:,0,:,:].unsqueeze(1).size()[2:], return_velocities=False)
-        return reconstruction, mu, log_var, z
+        
+        if not is_determinstic:
+            return reconstruction, mu, log_var, z
+        return reconstruction

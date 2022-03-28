@@ -6,7 +6,8 @@ import torch
 import re
 from Models.Vanilla_VAE import Vanilla_VAE
 
-from Constants import IMG_FOLDER, max_slice_no, TUMOR_SEPERATED_FOLDER, img_dimensions, Checkpoint_folder, configuration
+from Constants import IMG_FOLDER, max_slice_no, TUMOR_SEPERATED_FOLDER,\
+    img_dimensions, Checkpoint_folder, configuration, normalize, latent_dim
 
 
 class UtilityFunctions:
@@ -198,7 +199,7 @@ class UtilityFunctions:
             if img.max() != 0 and unique_counts[1][1] >= 100: #remove extra small tumors
                 
                 bbox = UtilityFunctions.extract_bbox(img)[0]
-                img = img[bbox[0]:bbox[2], bbox[1]:bbox[3]]
+                img = img[bbox[0]-10:bbox[2]+10, bbox[1]-10:bbox[3]+10]
                 img = cv2.resize (img, size, interpolation=cv2.INTER_NEAREST)
                 data.append (img)
                 complete_paths.append (complete_read_path)
@@ -257,7 +258,7 @@ class UtilityFunctions:
 
 
     @staticmethod
-    def final_loss(bce_loss, mu, logvar, beta=0.1):
+    def final_loss(bce_loss, mu, logvar, beta=0.01):
         """
         This function will add the reconstruction loss (BCELoss) and the 
         KL-Divergence.
@@ -403,7 +404,7 @@ class UtilityFunctions:
         #PATH =  os.path.join (Checkpoint_folder, configuration, str(epoch))
         #if not os.path.isdir(PATH):
         #    os.mkdir (PATH)
-        PATH = 'model_LV.pt'#os.path.join (Checkpoint_folder, 'model.pt')
+        PATH = 'model_vae_tumor.pt'#os.path.join (Checkpoint_folder, 'model.pt')
 
         torch.save({
             'epoch': epoch,
@@ -418,19 +419,36 @@ class UtilityFunctions:
     def generate_samples (src_images, model_checkpoint, out_folder):
 
         no_of_trans_samples = 10
+
+        src_images = torch.FloatTensor(src_images).cuda()
         
-        model = Vanilla_VAE ()
+        model = Vanilla_VAE ().cuda()
         checkpoint = torch.load(model_checkpoint)
         model.load_state_dict(checkpoint['model_state_dict'])
 
         model.eval()
 
-        rand_sample = torch.randn(no_of_trans_samples).cuda()
+        rand_sample = torch.randn((no_of_trans_samples, latent_dim)).cuda()
         thetas = model.decode(rand_sample)
 
         for idx, theta in enumerate (thetas):
 
-            out_image = model.T.transform_data()
+            #batch and color dimension to the image
+            curr_img = src_images[3].unsqueeze(0).unsqueeze(0)
+
+            out_image = model.T.transform_data(curr_img, theta.unsqueeze(0), outsize=curr_img.size()[2:])
+
+            out_image = out_image.detach().cpu().numpy().squeeze()
+
+            src_img_path = os.path.join (out_folder, 'src_img.png')
+            cv2.imwrite (src_img_path, src_images[3].detach().cpu().numpy().squeeze()*255)
+
+            dest_img_path = os.path.join (out_folder, 'dest_img_'+str(idx)+ '.png')
+            cv2.imwrite (dest_img_path, out_image*255)
+
+
+        
+
 
 
 

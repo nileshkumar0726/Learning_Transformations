@@ -2,8 +2,10 @@
 
 
 device_T = 'gpu'
-tess_size = [4,4]
+tess_size = [20,20]
 
+
+is_determinstic = False
 isTumor = True
 normalize = True 
 exp_type = 'Tumor'
@@ -12,15 +14,16 @@ IMG_FOLDER = '/home/stu3/s15/nk4856/Research/Pytorch-UNet/Data/new_data/train/sl
 #"/home/stu3/s15/nk4856/Research/Pytorch-UNet/Data/new_data/train/sliced/seg"
 TUMOR_SEPERATED_FOLDER = "/home/stu3/s15/nk4856/Research/Pytorch-UNet/Data/Extracted_Tumor_Labels_Remove_Consecutive" #this folder contains tumors 
 #"/home/nk4856/data/Datasets/Cardiac_Dataset/LV_Dataset/LV_Labels"
-TUMOR_SEPERATED_FOLDER = "/home/nk4856/data/Datasets/Liver_Dataset/Extracted_Tumor_Labels_Remove_Consecutive" #this folder contains tumors 
+#TUMOR_SEPERATED_FOLDER = "/home/nk4856/data/Datasets/Liver_Dataset/Extracted_Tumor_Labels_Remove_Consecutive" #this folder contains tumors 
 
 max_slice_no = 362
 logs_folder = "logs"
 
 
 epochs = 400
-batch_size = 64
+batch_size = 16
 lr = 0.0001 
+latent_dim = 12
 weight_decay = 1e-5
 img_dimensions = (30,30)
 regularization_constant = 2 #0.5 for tumor

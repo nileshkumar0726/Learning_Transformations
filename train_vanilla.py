@@ -7,7 +7,7 @@ from Models.Vanilla_VAE import Vanilla_VAE
 from Utils.util import UtilityFunctions
 from Constants import total_train_samples, total_val_samples, \
     batch_size, epochs, lr, weight_decay, img_dimensions, logs_folder, configuration, isTumor, \
-        normalize
+        normalize, is_determinstic
 from Datasets.pairs_dataset import PairsDataset
 from torch.utils.data import DataLoader
 import datetime
@@ -79,18 +79,28 @@ def fit (model, train_loader, val_loader):
             x = torch.cat((src, tgt), dim = 1)
             
             optimizer.zero_grad()
-            reconstruction, mu, logvar, z = model(x)
+
+            if is_determinstic:
+
+                reconstruction = model (x)
+                loss_matrix = torch.norm (reconstruction - tgt)
+                BCE_loss = torch.norm (loss_matrix)
+                loss = BCE_loss
+                KLD = torch.tensor(0)
+                
+
+            else:
+
+                reconstruction, mu, logvar, z = model(x)
+                loss_matrix = torch.norm (reconstruction - tgt)
+                BCE_loss = torch.norm (loss_matrix)
+                BCE_loss, KLD = UtilityFunctions.final_loss(BCE_loss, mu, logvar)
+                loss = BCE_loss + KLD 
+                
 
             assert (reconstruction.size() == tgt.size())
 
-            loss_matrix = torch.norm (reconstruction - tgt)
-            bce_loss = torch.norm (loss_matrix)
-
-            
-            BCE_loss, KLD = UtilityFunctions.final_loss(bce_loss, mu, logvar)
-            loss = BCE_loss + KLD 
-
-            
+        
             loss.backward()
             optimizer.step()
 
@@ -142,37 +152,24 @@ def fit (model, train_loader, val_loader):
 
             x = torch.cat((src, tgt), dim = 1)
             
-            reconstruction, mu, logvar, z, = model(x)
+            if is_determinstic:
 
-            src_bboxes = UtilityFunctions.extract_bbox (src.detach().cpu().numpy())
-            tgt_bboxes = UtilityFunctions.extract_bbox (tgt.detach().cpu().numpy())
-
-            it = 0
-            while it < len(src_bboxes):
-
-                x_n_bbox = src_bboxes[it]
-                x_m_bbox = tgt_bboxes[it]
-
-                bbox = np.zeros_like (x_m_bbox)
+                reconstruction = model (x)
+                loss_matrix = torch.norm (reconstruction - tgt)
+                BCE_loss = torch.norm (loss_matrix)
+                loss = BCE_loss
+                KLD = torch.tensor(0)
                 
-                bbox[0] = min (x_n_bbox[0], x_m_bbox[0])
-                bbox[1] = min (x_n_bbox[1], x_m_bbox[1])
-                bbox[2] = max (x_n_bbox[2], x_m_bbox[2])
-                bbox[3] = max (x_n_bbox[3], x_m_bbox[3])
 
-                if it == 0:
-                    plot_box = bbox
+            else:
 
-                diff_matrix = tgt[it] - reconstruction[it]
-                loss_matrix = diff_matrix[:,bbox[0]:bbox[2], bbox[1]:bbox[3]]
-                if it == 0:
-                    bce_loss = torch.norm(loss_matrix)
-                else:
-                    bce_loss += torch.norm(loss_matrix)
-                it += 1
+                reconstruction, mu, logvar, z = model(x)
+                loss_matrix = torch.norm (reconstruction - tgt)
+                BCE_loss = torch.norm (loss_matrix)
+                BCE_loss, KLD = UtilityFunctions.final_loss(BCE_loss, mu, logvar)
+                loss = BCE_loss + KLD 
 
-            BCE_loss, KLD = UtilityFunctions.final_loss(bce_loss, mu, logvar)
-            loss = BCE_loss + KLD 
+            assert (reconstruction.size() == tgt.size())
 
 
             running_val_recon_loss += BCE_loss.item()
@@ -196,6 +193,7 @@ def fit (model, train_loader, val_loader):
 
         if running_val_recon_loss < min_val_loss:
 
+            print ("Model saved in " + str(i) +"th epoch")
             UtilityFunctions.save_checkpoint (i, model, optimizer, running_recon_loss)
             min_val_loss = running_val_recon_loss
 
