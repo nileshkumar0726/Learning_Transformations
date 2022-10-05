@@ -105,7 +105,7 @@ class Vanilla_VAE(nn.Module):
 
         return theta
  
-    def forward(self, x):
+    def forward(self, x, return_velocites = False):
 
         # encoding
         if not is_determinstic:
@@ -115,8 +115,12 @@ class Vanilla_VAE(nn.Module):
         
         theta = self.decode (z)
             
-        reconstruction = self.T.transform_data(x[:,0,:,:].unsqueeze(1), theta, outsize=x[:,0,:,:].unsqueeze(1).size()[2:], return_velocities=False)
+        reconstruction, velocities = self.T.transform_data\
+            (x[:,0,:,:].unsqueeze(1), theta, outsize=x[:,0,:,:].unsqueeze(1).size()[2:], return_velocities=return_velocites)
         
         if not is_determinstic:
+            if return_velocites:
+                return reconstruction, mu, log_var, z, velocities
+                
             return reconstruction, mu, log_var, z
         return reconstruction

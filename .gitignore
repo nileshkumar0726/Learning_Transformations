@@ -3,3 +3,5 @@ Model_Weights/
 nohup.out
 *.pkl
 *.pt
+basis_files/cpab_basis_dim2_tess20_20_vo0_zb1_vp0.pkl
+basis_files/*

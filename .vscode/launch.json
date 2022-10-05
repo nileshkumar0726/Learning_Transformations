@@ -6,10 +6,10 @@
     "configurations": [
         {
             "preLaunchTask": "cuda_device",
-            "name": "Python: Current File",
+            "name": "Python: main",
             "type": "python",
             "request": "launch",
-            "program": "${file}",
+            "program": "${workspaceFolder}/main.py",
             "console": "integratedTerminal"
         }
     ]
