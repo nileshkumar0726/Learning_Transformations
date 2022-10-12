@@ -6,7 +6,7 @@
         {
             "label": "cuda_device",
             "type": "shell",
-            "command": "export CUDA_VISIBLE_DEVICES=1"
+            "command": "export CUDA_VISIBLE_DEVICES=4"
         }
     ]
 }

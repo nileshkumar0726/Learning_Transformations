@@ -14,10 +14,11 @@ import datetime
 import os
 from torchvision.utils import make_grid
 from torch.utils.tensorboard import SummaryWriter
+import logging
 
 
 def train_vae ():
-
+    
     
     train_imgs, train_labels, train_paths =\
          UtilityFunctions.load_tumor_samples (start=0, end=total_train_samples, normalize=normalize, size=img_dimensions)
@@ -44,6 +45,9 @@ def fit (model, train_loader, val_loader):
 
     min_val_loss = 10000
     curr_patience = 0
+    
+    n_train = len (train_loader.dataset)
+    n_val = len (val_loader.dataset)
 
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     optimizer = optim.Adam (model.parameters(), lr = lr, weight_decay = weight_decay)
@@ -57,12 +61,26 @@ def fit (model, train_loader, val_loader):
     model = model.to(device)
 
     log_folder =  os.path.join(logs_folder, datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
-    writer = SummaryWriter (log_folder, comment=configuration)
+    writer = SummaryWriter (log_folder)
+    
+    logging.basicConfig(filename = writer.log_dir +"/run_logs", \
+        level=logging.INFO, format='%(levelname)s: %(message)s')
+    
+    model_dir = writer.log_dir
+    
+    logging.info(f'''Starting training:
+        Epochs:          {epochs}
+        Batch size:      {batch_size}
+        Learning rate:   {lr}
+        Training size:   {n_train}
+        Validation size: {n_val}
+        Device:          {device.type}
+        Velocity lambda: {velocity_lambda}
+    ''')
 
 
     for i in range (epochs):
 
-        print ("Epoch = ", i)
 
         running_recon_loss = 0.0
         running_kld_loss = 0.0
@@ -96,8 +114,7 @@ def fit (model, train_loader, val_loader):
             else:
 
                 reconstruction, mu, logvar, z, velocities = model(x, return_velocites= True)
-                loss_matrix = torch.norm (reconstruction - tgt)
-                BCE_loss = torch.norm (loss_matrix)
+                BCE_loss = torch.norm (reconstruction - tgt)
                 velocity_norm = torch.norm(velocities) * velocity_lambda
                 BCE_loss, KLD = UtilityFunctions.final_loss(BCE_loss, mu, logvar)
                 loss = BCE_loss + KLD + velocity_norm
@@ -130,9 +147,12 @@ def fit (model, train_loader, val_loader):
         writer.add_image ('Images/Recon',recon_grid, i)
 
 
-        # running_recon_loss /= len(train_loader.dataset)
-        # running_kld_loss /= len(train_loader.dataset)
-        # running_velocity_norm /= len(train_loader.dataset)
+        running_recon_loss /= len(train_loader.dataset)
+        running_kld_loss /= len(train_loader.dataset)
+        running_velocity_norm /= len(train_loader.dataset)
+        
+        logging.info('Train recon Loss: {}, Train KL loss: {}, Train velocity norm: {}, Epoch no: {}'\
+            .format(running_recon_loss, running_kld_loss, running_velocity_norm, i))
             
         # src_grid = make_grid(src)
         # tgt_grid = make_grid(tgt)
@@ -186,6 +206,9 @@ def fit (model, train_loader, val_loader):
         running_val_kld_loss /= len(val_loader.dataset)
         running_val_velocity_norm /= len (val_loader.dataset)
         
+        logging.info('Val recon Loss: {}, Val KL loss: {}, Val velocity norm: {}, Epoch no: {}'\
+            .format(running_val_recon_loss, running_val_kld_loss, running_val_velocity_norm, i))
+        
         writer.add_scalar ('Loss/val_recon',running_val_recon_loss, i )
         writer.add_scalar ('Loss/val_kld',running_val_kld_loss, i )
         writer.add_scalar ('Loss/val_velocity_norm', running_val_velocity_norm, i)
@@ -202,14 +225,17 @@ def fit (model, train_loader, val_loader):
 
         if total_val_loss < min_val_loss:
 
-            print ("Model saved in " + str(i) +"th epoch")
-            UtilityFunctions.save_checkpoint (i, model, optimizer, running_recon_loss)
+            logging.info(f'Checkpoint {i} saved !')
+            UtilityFunctions.save_checkpoint (i, model, optimizer, total_val_loss, model_dir)
             min_val_loss = total_val_loss
             curr_patience = 0
         
         else:
+            curr_patience += 1
             if curr_patience == max_patience:
-                print ("Max patience reached, finis")
+                logging.info('Validation loss has not improved for: {}, and max patience is: {}'\
+                    .format (curr_patience, max_patience))
+                break
 
 
 

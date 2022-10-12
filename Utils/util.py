@@ -399,12 +399,12 @@ class UtilityFunctions:
 
 
     @staticmethod
-    def save_checkpoint (epoch, model, optimizer, loss):
+    def save_checkpoint (epoch, model, optimizer, loss, checkpoint_dir):
 
         #PATH =  os.path.join (Checkpoint_folder, configuration, str(epoch))
         #if not os.path.isdir(PATH):
         #    os.mkdir (PATH)
-        PATH = 'model_vae_tumor.pt'#os.path.join (Checkpoint_folder, 'model.pt')
+        PATH = os.path.join (checkpoint_dir, 'model_vae_tumor.pt')
 
         torch.save({
             'epoch': epoch,

@@ -23,15 +23,15 @@ logs_folder = "logs"
 
 
 epochs = 400
-batch_size = 16
+batch_size = 32
 lr = 0.0001 
-max_patience = 10
+max_patience = 20
 latent_dim = 12
 weight_decay = 1e-5
 img_dimensions = (30,30)
 regularization_constant = 2 #0.5 for tumor
 Checkpoint_folder = "Model_Weights"
-velocity_lambda = 0.05 #to control effect of velocity_magnitude on overall loss
+velocity_lambda = 0.001 #to control effect of velocity_magnitude on overall loss
 
 
 total_train_samples =  2200  #3700 #2200 for tumor
