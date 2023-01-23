@@ -7,7 +7,7 @@ from Models.Vanilla_VAE import Vanilla_VAE
 from Utils.util import UtilityFunctions
 from Constants import total_train_samples, total_val_samples, \
     batch_size, epochs, lr, weight_decay, img_dimensions, logs_folder, configuration, isTumor, \
-        normalize, is_determinstic, max_patience, velocity_lambda
+        normalize, is_determinstic, max_patience, velocity_lambda, beta
 from Datasets.pairs_dataset import PairsDataset
 from torch.utils.data import DataLoader
 import datetime
@@ -76,6 +76,7 @@ def fit (model, train_loader, val_loader):
         Validation size: {n_val}
         Device:          {device.type}
         Velocity lambda: {velocity_lambda}
+        Beta:            {beta}
     ''')
 
 
@@ -93,7 +94,7 @@ def fit (model, train_loader, val_loader):
         model.train()
         iter = 0
 
-        for src, tgt, _ in tqdm(train_loader):
+        for src, tgt in tqdm(train_loader):
 
             src = src.to(device).float()
             tgt = tgt.to(device).float()
@@ -116,7 +117,7 @@ def fit (model, train_loader, val_loader):
                 reconstruction, mu, logvar, z, velocities = model(x, return_velocites= True)
                 BCE_loss = torch.norm (reconstruction - tgt)
                 velocity_norm = torch.norm(velocities) * velocity_lambda
-                BCE_loss, KLD = UtilityFunctions.final_loss(BCE_loss, mu, logvar)
+                BCE_loss, KLD = UtilityFunctions.final_loss(BCE_loss, mu, logvar, beta = beta)
                 loss = BCE_loss + KLD + velocity_norm
                 
             loss.backward()
@@ -171,7 +172,7 @@ def fit (model, train_loader, val_loader):
         #Val Loop - Train and Val need to be coded as a single func with flags to avoid repeating code
         model.eval()
 
-        for src, tgt, _ in tqdm(val_loader):
+        for src, tgt in tqdm(val_loader):
 
             src = src.to(device).float()
             tgt = tgt.to(device).float()
@@ -192,7 +193,7 @@ def fit (model, train_loader, val_loader):
                 loss_matrix = torch.norm (reconstruction - tgt)
                 BCE_loss = torch.norm (loss_matrix)
                 velocity_norm = torch.norm(velocities) * velocity_lambda
-                BCE_loss, KLD = UtilityFunctions.final_loss(BCE_loss, mu, logvar)
+                BCE_loss, KLD = UtilityFunctions.final_loss(BCE_loss, mu, logvar, beta = beta)
                 loss = BCE_loss + KLD + velocity_norm
 
             assert (reconstruction.size() == tgt.size())

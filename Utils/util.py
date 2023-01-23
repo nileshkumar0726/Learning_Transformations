@@ -7,7 +7,7 @@ import re
 from Models.Vanilla_VAE import Vanilla_VAE
 
 from Constants import IMG_FOLDER, max_slice_no, TUMOR_SEPERATED_FOLDER,\
-    img_dimensions, Checkpoint_folder, configuration, normalize, latent_dim
+    img_dimensions, Checkpoint_folder, configuration, normalize, latent_dim, fold_3_50_percent_train
 
 
 class UtilityFunctions:
@@ -65,7 +65,7 @@ class UtilityFunctions:
 
 
     @staticmethod
-    def make_pairs_list_modified_KNN (X_train, y_train, neighbours_to_keep = 5):
+    def make_pairs_list_modified_KNN (X_train, y_train, neighbours_to_keep = 10):
 
         '''
             Same as make_pairs_list_modified_KNN but with different distance function
@@ -91,12 +91,12 @@ class UtilityFunctions:
                 for tgt_img in X_train[datapoints_class]:
                     
                     tgt_img = np.expand_dims (tgt_img, axis = 0)
-                    imgs = np.concatenate ((current_img, tgt_img) , axis = 0)
-                    bboxes = UtilityFunctions.extract_bbox (imgs)
-                    curr_bbox, tgt_bbox = bboxes[0], bboxes[1]
-                    curr_bbox, tgt_bbox = UtilityFunctions.match_bboxes (curr_bbox, tgt_bbox)
+                    # imgs = np.concatenate ((current_img, tgt_img) , axis = 0)
+                    # bboxes = UtilityFunctions.extract_bbox (imgs)
+                    # curr_bbox, tgt_bbox = bboxes[0], bboxes[1]
+                    # curr_bbox, tgt_bbox = UtilityFunctions.match_bboxes (curr_bbox, tgt_bbox)
 
-                    diff_matrix = UtilityFunctions.augmented_distance (current_img, tgt_img, curr_bbox, tgt_bbox)
+                    diff_matrix = current_img - tgt_img #UtilityFunctions.augmented_distance (current_img, tgt_img, curr_bbox, tgt_bbox)
                     dist = np.linalg.norm (diff_matrix.flatten())
 
 
@@ -158,7 +158,7 @@ class UtilityFunctions:
             unique_counts = np.unique(img, return_counts = True)
 
             
-            if img.max() != 0 and unique_counts[1][1] >= 100: #remove extra small objects
+            if img.max() != 0 and unique_counts[1][1] >= 70: #remove extra small objects
                 
                 data.append (img)
                 complete_paths.append (complete_path)
@@ -192,11 +192,16 @@ class UtilityFunctions:
 
         for i in range (start, end):
             filename = filenames[i]
+            
+            case_no = filename[:5]
+            if case_no not in fold_3_50_percent_train:
+                continue
+                
             complete_read_path = os.path.join(train_label_folder, filename)    
             img = cv2.imread (complete_read_path, 0)
             unique_counts = np.unique(img, return_counts = True)
             
-            if img.max() != 0 and unique_counts[1][1] >= 100: #remove extra small tumors
+            if img.max() != 0 and unique_counts[1][1] >= 80: #remove extra small tumors
                 
                 bbox = UtilityFunctions.extract_bbox(img)[0]
                 img = img[bbox[0]-10:bbox[2]+10, bbox[1]-10:bbox[3]+10]
@@ -258,7 +263,7 @@ class UtilityFunctions:
 
 
     @staticmethod
-    def final_loss(bce_loss, mu, logvar, beta=0.01):
+    def final_loss(bce_loss, mu, logvar, beta=0.001):
         """
         This function will add the reconstruction loss (BCELoss) and the 
         KL-Divergence.
@@ -404,7 +409,7 @@ class UtilityFunctions:
         #PATH =  os.path.join (Checkpoint_folder, configuration, str(epoch))
         #if not os.path.isdir(PATH):
         #    os.mkdir (PATH)
-        PATH = os.path.join (checkpoint_dir, 'model_vae_tumor.pt')
+        PATH = os.path.join (checkpoint_dir, 'model_vae_kits_tumor_fold_3_50_percent.pt')
 
         torch.save({
             'epoch': epoch,
@@ -418,7 +423,7 @@ class UtilityFunctions:
     @staticmethod
     def generate_samples (src_images, model_checkpoint, out_folder):
 
-        no_of_trans_samples = 10
+        no_of_trans_samples = 40
 
         src_images = torch.FloatTensor(src_images).cuda()
         
